@@ -14,6 +14,13 @@ from langchain_core.prompts import MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 # + END: memory imports
 
+from typing import Dict, List
+from pydantic import BaseModel, Field
+from langchain_core.messages import BaseMessage
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.prompts import MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
+
 st.set_page_config(page_title="Chatbot", page_icon="💬")
 st.header("Basic Chatbot (No Memory → With Memory)")
 st.write("This file runs with memory. Diff-style comments show changes.")

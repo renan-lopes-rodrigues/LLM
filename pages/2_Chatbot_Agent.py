@@ -5,12 +5,18 @@ from langchain_openai import ChatOpenAI
 from langchain_tavily import TavilySearch
 from langgraph.prebuilt import create_react_agent
 from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
+from langchain_community.tools import WikipediaQueryRun
+
+from langchain_community.tools import WikipediaQueryRun
+from langchain_community.utilities import WikipediaAPIWrapper
+from langchain_community.utilities import ArxivAPIWrapper
+from langchain.agents import Tool
 
 
 st.set_page_config(page_title="ChatWeb", page_icon="🌐")
 st.header("Chatbot with Web Browser Access")
 
-st.write("Equipped with Tavily search agent only")
+st.write("Equipped with Tavily search agent, Wikipedia, and Arxiv tools.")
 
 class ChatbotTools:
     def __init__(self):
@@ -18,33 +24,46 @@ class ChatbotTools:
         self.openai_model = "gpt-4o-mini"
 
     def setup_agent(self):
-        # Tavily key input (unchanged)
-        tavily_key = st.sidebar.text_input(
-            "Tavily API Key",
-            type="password",
-            value=st.session_state.get("TAVILY_API_KEY", ""),
-            placeholder="tvly-...",
+        # Check if Bing API key is available
+        bing_subscription_key = os.getenv('BING_SUBSCRIPTION_KEY')
+        wiki_agent = WikipediaQueryRun(api_wrapper = WikipediaAPIWrapper())
+
+        if bing_subscription_key:
+            # Use BingSearch if API key is available
+            bing_search = BingSearchAPIWrapper()
+            tools = [
+                Tool(
+                    name="BingSearch",
+                    func=bing_search.run,
+                    description="Useful for when you need to answer questions about current events. You should ask targeted questions",
+                ),
+                Tool(
+                name="Wikipedia",
+                func=wiki_agent.run,
+                description="Useful for when you need to query about a specific topic, person, or event. You should ask targeted questions",
+            )
+            ]
+        else:
+            # Fallback to DuckDuckGo if Bing API key is not available
+            ddg_search = DuckDuckGoSearchRun()
+            tools = [
+                Tool(
+                    name="DuckDuckGoSearch",
+                    func=ddg_search.run,
+                    description="Useful for when you need to answer questions about current events. You should ask targeted questions",
+                )
+            ]
+
+        # Setup LLM and Agent
+        llm = ChatOpenAI(model_name=self.openai_model, streaming=True)
+        agent = initialize_agent(
+            tools=tools,
+            llm=llm,
+            agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+            handle_parsing_errors=True,
+            verbose=True
         )
-        if tavily_key:
-            st.session_state["TAVILY_API_KEY"] = tavily_key
-
-        if not st.session_state.get("TAVILY_API_KEY"):
-            st.warning("Please enter your Tavily API key in the sidebar.")
-            return None
-
-        # Tavily tool (already present before)
-        tavily_search = TavilySearch(
-            max_results=5,
-            topic="general",
-            tavily_api_key=st.session_state["TAVILY_API_KEY"],
-        )
-
-        tools = [tavily_search]
-
-        llm = ChatOpenAI(model=self.openai_model, streaming=True)
-        agent = create_react_agent(llm, tools)
         return agent
-
     @utils.enable_chat_history
     def main(self):
         agent = self.setup_agent()
